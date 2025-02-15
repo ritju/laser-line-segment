@@ -1,4 +1,4 @@
-#include <ros/ros.h>
+#include <rclcpp/rclcpp.hpp>
 #include "laserline/laser_feature_ros.h"
 
 using namespace std;
@@ -10,11 +10,11 @@ FILE * fp = fopen("timeuse.txt","w+");*/
 
 int main(int argc,char** argv)
 {
-	ROS_DEBUG("Starting laserline node.");
+	rclcpp::init(argc, argv);
+	auto nh = std::make_shared<rclcpp::Node>("laser_line_segment");
+	auto nh_local = std::make_shared<rclcpp::Node>("laser_line_segment_local");
 
-	ros::init(argc, argv, "laserline");
-	ros::NodeHandle nh;
-	ros::NodeHandle nh_local("~");
+	RCLCPP_INFO(nh->get_logger(), "Starting laserline node.");
 	line_feature::LaserFeatureROS line_feature_ros(nh, nh_local);
 
 /*	double frequency;

@@ -9,10 +9,10 @@ mobile robot pose from laser
 #include <iostream>
 #include <stdio.h>
 #include <math.h>
-#include <ros/ros.h>
-#include <sensor_msgs/LaserScan.h>
-#include <visualization_msgs/Marker.h>
-#include <geometry_msgs/Point.h>
+#include <rclcpp/rclcpp.hpp>
+#include <sensor_msgs/msg/laser_scan.hpp>
+#include <visualization_msgs/msg/marker.hpp>
+#include <geometry_msgs/msg/point.hpp>
 #include "laserline/line_feature.h"
 
 namespace line_feature
@@ -21,7 +21,7 @@ namespace line_feature
 class LaserFeatureROS
 {
     public:
-		LaserFeatureROS(ros::NodeHandle&, ros::NodeHandle&);
+		LaserFeatureROS(rclcpp::Node::SharedPtr NodeHandle, rclcpp::Node::SharedPtr);
 		//
 		~LaserFeatureROS();
 		//
@@ -29,14 +29,14 @@ class LaserFeatureROS
 	private:
 		//memeber function
 		//发布直线分割消息
-		void publishMarkerMsg(const std::vector<gline> &,visualization_msgs::Marker &marker_msg);
+		void publishMarkerMsg(const std::vector<gline> &,visualization_msgs::msg::Marker &marker_msg);
 		//开始函数，包括读取文件（先验地图等信息）
 		//load params
 		void load_params();
 		//角度参量
-		void compute_bearing(const sensor_msgs::LaserScan::ConstPtr&);
+		void compute_bearing(const sensor_msgs::msg::LaserScan::ConstPtr&);
 		//激光线程函数（ros节点回调函数），采集激光并进行处理，处理频率以采集频率为准
-		void scanValues(const sensor_msgs::LaserScan::ConstPtr&);
+		void scanValues(const sensor_msgs::msg::LaserScan::ConstPtr&);
 
      private:
 		//参数信息laser
@@ -52,11 +52,11 @@ class LaserFeatureROS
 		std::vector<gline> m_gline;
 		std::vector<line> m_line;
 		//ROS
-		ros::NodeHandle nh_;
-  		ros::NodeHandle nh_local_;
-  		ros::Subscriber scan_subscriber_;
-  		ros::Publisher line_publisher_;
-  		ros::Publisher marker_publisher_;
+		rclcpp::Node::SharedPtr nh_;
+  		rclcpp::Node::SharedPtr nh_local_;
+  		rclcpp::Subscription<sensor_msgs::msg::LaserScan>::SharedPtr scan_subscriber_;
+  		// rclcpp::Publisher<>::SharedPtr line_publisher_;
+  		rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr marker_publisher_;
 };
 
 }
