@@ -26,12 +26,16 @@ LaserFeatureROS::~LaserFeatureROS()
 
 void LaserFeatureROS::compute_bearing(const sensor_msgs::msg::LaserScan::ConstPtr &scan_msg)
 {
-	double angle_increment_,angle_start_;
+	double angle_increment_,angle_start_, range_min_, range_max_;
 	angle_increment_ = scan_msg->angle_increment;
 	angle_start_ = scan_msg->angle_min;
+	range_min_ = scan_msg->range_min;
+	range_max_ = scan_msg->range_max;
 	
 	line_feature_.set_angle_increment(angle_increment_);
 	line_feature_.set_angle_start(angle_start_);
+	line_feature_.set_range_min(range_min_);
+	line_feature_.set_range_max(range_max_);
 	
 	std::vector<double> bearings, cos_bearings, sin_bearings;
 	std::vector<unsigned int> index;
@@ -100,6 +104,23 @@ void LaserFeatureROS::startgame()
 	std::vector<gline> glines;
   	line_feature_.extractLines(lines,glines);
 
+	// 去除以激光为起点的误检测直线。
+	// if (glines.size() > 0)
+	// {
+	// 	for (auto it = glines.begin(); it != glines.end();)
+	// 	{
+	// 		double distance = std::hypot(it->x1, it->y1);
+	// 		double distance_thr = 0.2;
+	// 		if (distance < distance_thr)
+	// 		{
+	// 			RCLCPP_INFO_THROTTLE(nh_local_->get_logger(), *nh_local_->get_clock(), 1000, "x1: %f, y1: %f, distance: %f < %f, this is a bug, tmp delete", it->x1, it->y1, distance, distance_thr);
+	// 			glines.erase(it);
+	// 			continue;
+	// 		}
+	// 		it++;
+	// 	}
+	// }
+
   	// Also publish markers if parameter publish_markers is set to true
   	if (show_lines_)
   	{
@@ -133,13 +154,13 @@ void LaserFeatureROS::load_params()
 	double least_thresh,min_line_length,predict_distance;
 
 	nh_local_->declare_parameter<double>("least_thresh", 0.04);
-	nh_local_->declare_parameter<double>("min_line_length", 0.5);
+	nh_local_->declare_parameter<double>("min_line_length", 1.5);
 	nh_local_->declare_parameter<double>("predict_distance", 0.1);
 	nh_local_->declare_parameter<int>("seed_line_points", 6);
 	nh_local_->declare_parameter<int>("min_line_points", 12);
 
 	least_thresh = nh_local_->get_parameter_or<double>("least_thresh", 0.04);
-	min_line_length = nh_local_->get_parameter_or<double>("min_line_length", 0.5);
+	min_line_length = nh_local_->get_parameter_or<double>("min_line_length", 1.5);
 	predict_distance = nh_local_->get_parameter_or<double>("predict_distance", 0.1);
 	seed_line_points = nh_local_->get_parameter_or<int>("seed_line_points", 6);
 	min_line_points = nh_local_->get_parameter_or<int>("min_line_points", 12);

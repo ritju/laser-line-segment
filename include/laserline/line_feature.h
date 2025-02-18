@@ -11,6 +11,7 @@ laser_line_extraction
 #include <iostream>
 #include <stdio.h>
 #include <math.h>
+#include <limits>
 
 //这些模块可以用自己的math.h头文件进行包含
 ////宏定义
@@ -40,6 +41,8 @@ class LineFeature
 		//设置参数
 		void set_angle_increment(double);
 		void set_angle_start(double);
+		void set_range_min(double);
+		void set_range_max(double);
 		void set_least_threshold(double);
 		void set_min_line_length(double);
 		void set_predict_distance(double);

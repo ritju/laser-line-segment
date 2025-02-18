@@ -26,6 +26,16 @@ void LineFeature::set_angle_start(double angle_start)
 	params_.angle_start = angle_start;
 }
 
+void LineFeature::set_range_min(double range_min)
+{
+	params_.range_min = range_min;
+}
+
+void LineFeature::set_range_max(double range_max)
+{
+	params_.range_max = range_max;
+}
+
 void LineFeature::set_least_threshold(double least_thresh)
 {
 	params_.least_thresh = least_thresh;
@@ -67,16 +77,27 @@ void LineFeature::setCosSinData(const std::vector<double>& bearings,
 void LineFeature::setRangeData(const std::vector<double>& ranges)
 {
   range_data_.ranges = ranges;
+
+  // fix bug for invalid use of  range's values which are smaller or larger than range_min
+  int index = 0;
+  for (auto it = range_data_.ranges.begin(); it != range_data_.ranges.end(); it++)
+  {
+	if (*it < params_.range_min || *it > params_.range_max)
+	{
+		*it = std::numeric_limits<double>::infinity();
+	}
+  }
+
   range_data_.xs.clear();
   range_data_.ys.clear();
   for (std::vector<unsigned int>::const_iterator cit = cs_data_.index.begin(); 
        cit != cs_data_.index.end(); ++cit)
   {
-    range_data_.xs.push_back(cs_data_.cos_value[*cit] * ranges[*cit]);
-    range_data_.ys.push_back(cs_data_.sin_value[*cit] * ranges[*cit]);
+    range_data_.xs.push_back(cs_data_.cos_value[*cit] * range_data_.ranges[*cit]);
+    range_data_.ys.push_back(cs_data_.sin_value[*cit] * range_data_.ranges[*cit]);
   }
 }
-//一次最小二乘求解直线参数
+//一次最小二乘求解直线参数 1=>default; 2=>向前生长，index++; 3=>向后生长, index--;
 least LineFeature::leastsquare(int start,int end,int firstfit)
 {
 	double w1 = 0,w2 = 0,w3 = 0;
@@ -125,6 +146,8 @@ least LineFeature::leastsquare(int start,int end,int firstfit)
 	w2 = mid2*mid2-n*mid4-mid1*mid1+n*mid3;
 	w3 = mid1*mid2-n*mid5;
 	//ax+by+c = 0 等价于 y = kx + b;kx-y + b = 0 //a = k,c = b,b=-1
+	// printf("start: %d, end: %d, fit: %d", start, end, firstfit);
+	// printf("w1: %f\n", w1);
 	if(w1==0)
 	{
 		temp.a = -1;
@@ -159,7 +182,7 @@ bool LineFeature::detectline(const int start,const int num)
 	for(k = start;k < start+num;k++)
 	{
 		//到直线的垂直距离
-		error1 = fabs(((m_least.a)*range_data_.xs[k]+(m_least.b)*range_data_.ys[k]+m_least.c))/sqrt((1+(m_least.a)*(m_least.a)));
+		error1 = fabs(((m_least.a)*range_data_.xs[k]+(m_least.b)*range_data_.ys[k]+m_least.c))/sqrt((1+(m_least.a)*(m_least.a)));  // m_least.b = -1;
 		
 		if(error1 > params_.least_thresh)
 		{
@@ -176,7 +199,7 @@ bool LineFeature::detectline(const int start,const int num)
 		else
 		{
 			kp = tan(theta);
-			m_pn.x = (m_least.c)/(kp - m_least.a);
+			m_pn.x = (m_least.c)/(kp - m_least.a); // m_least.b = -1
 			m_pn.y = kp*m_pn.x;
 		}
 		
@@ -215,12 +238,12 @@ int LineFeature::detectfulline(const int start)
 	b = m_least.b;
 	c = m_least.c;
 
-	n2 = start + params_.seed_line_points;
 	least m_result;
 	m_result.a = 0;
 	m_result.b = 0;
 	m_result.c = 0;	
 	//向前生长
+	n2 = start + params_.seed_line_points;
 	while(flag2)
 	{		
 		if((fabs(a*range_data_.xs[n2]+b*range_data_.ys[n2]+c)/(sqrt(1+a*a)))<params_.least_thresh)
@@ -244,8 +267,8 @@ int LineFeature::detectfulline(const int start)
 		}
 	}
 	n2 = n2-1;
-	//向后回溯
 
+	//向后回溯
 	n1 = start - 1;
 	if(n1 < 0)
 	{
@@ -322,6 +345,7 @@ void LineFeature::cleanline()
 	
 	for(p = 0; p < m_line.size() - 1; p++)
 	{
+		// 合并斜率相近的重叠直线
 		m = m_line[p].right;
 		for(q = p+1;q < m_line.size();q++)
 		{
@@ -399,6 +423,7 @@ bool LineFeature::delete_short_line(const int n1,const int n2)
 	}
 	else
 	{
+		// printf("n1: %d, n2: %d\n", n1, n2);
 		return true;
 	}		
 }
@@ -421,11 +446,18 @@ void LineFeature::generate(std::vector<gline>& temp_line2)
 		{
 			endpoint1.x = (range_data_.xs[m]/m_line[i].a + range_data_.ys[m] - m_line[i].c)/(m_line[i].a + 1.0/(m_line[i].a));
 			endpoint1.y = m_line[i].a*endpoint1.x + m_line[i].c;
+			// std::cout << i << " => x: " << range_data_.xs[m] << ", y: " << range_data_.ys[m] << std::endl;
+			// std::cout << "left: " << m_line[i].left << ", right: " << m_line[i].right << std::endl;
+			// printf("a: %f, b: %f, c: %f", m_line[i].a, m_line[i].b, m_line[i].c);
+			// printf("point1=> x: %f, y: %f", m_line[i].p1.x, m_line[i].p1.y);
+			// printf("point2=> x: %f, y: %f", m_line[i].p2.x, m_line[i].p2.y);
+			// std::cout << i << " => x: " << endpoint1.x << ", y: " << endpoint1.y << std::endl;
 		}
 		else
 		{
-			endpoint1.x = range_data_.ys[m];
-			endpoint1.y = m_line[i].c/m_line[i].a;
+			endpoint1.x = -m_line[i].c/m_line[i].a;
+			endpoint1.y = range_data_.ys[m];
+			printf("start point => x: %f, y: %f", endpoint1.x, endpoint1.y);
 		}
 				
 		line_temp.x1 = endpoint1.x;
@@ -440,8 +472,10 @@ void LineFeature::generate(std::vector<gline>& temp_line2)
 		}
 		else
 		{
-			endpoint2.x = range_data_.ys[n];
-			endpoint2.y = m_line[i].c/m_line[i].a;
+			endpoint2.x = -m_line[i].c/m_line[i].a;
+			endpoint2.y = range_data_.ys[n];
+
+			printf("end point => x: %f, y: %f", endpoint2.x, endpoint2.y);
 		}
 				
 		line_temp.x2 = endpoint2.x;
@@ -475,10 +509,12 @@ void LineFeature::extractLines(std::vector<line>& temp_line1,std::vector<gline>&
 		if(detectline(i,params_.seed_line_points))
 		{	
 			line_include = detectfulline(i);
+			// std::cout << "line_include: " << line_include << std::endl;
 			i = line_include;
 		}
 		
 	}
+	// std::cout << "--------------" << std::endl;
 	cleanline();
 	
 	for(int p = 0; p < m_line.size();p++)

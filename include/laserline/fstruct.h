@@ -44,6 +44,8 @@ typedef struct _Params
 {
 	double angle_increment;//角度增量
 	double angle_start;//初始角度
+	double range_min; //range最小有效值
+	double range_max; //range最大有效值
 	double least_thresh;//正交拟合阈值
 	double min_line_length;//拟合线段最短距离
 	double predict_distance;//真实点与与预测点之间的距离阈值
