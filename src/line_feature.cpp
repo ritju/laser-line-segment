@@ -162,6 +162,73 @@ least LineFeature::leastsquare(int start,int end,int firstfit)
 	}
 	return temp;
 }
+
+least LineFeature::leastsquare2(int start,int end,int firstfit)
+{
+	least temp;
+	double n = end - start + 1;
+
+	//firstfit = true;	
+
+	if(firstfit == 1)
+	{
+		mid1 = 0;
+		mid2 = 0;
+		mid3 = 0;
+		mid4 = 0; 
+		mid5 = 0;
+		int k = 0;
+		for(k = start;k <= end;k++)
+		{
+			mid1+=range_data_.xs[k];
+			mid2+=range_data_.ys[k];
+			mid3+=range_data_.xs[k]*range_data_.xs[k];
+			mid4+=range_data_.ys[k]*range_data_.ys[k];
+			mid5+=range_data_.xs[k]*range_data_.ys[k];
+		}
+	}
+	else
+	{
+		if(firstfit == 2)
+		{
+			mid1+=range_data_.xs[end];
+			mid2+=range_data_.ys[end];
+			mid3+=range_data_.xs[end]*range_data_.xs[end];
+			mid4+=range_data_.ys[end]*range_data_.ys[end];
+			mid5+=range_data_.xs[end]*range_data_.ys[end];
+		}
+		else
+		{
+			mid1+=range_data_.xs[start];
+			mid2+=range_data_.ys[start];
+			mid3+=range_data_.xs[start]*range_data_.xs[start];
+			mid4+=range_data_.ys[start]*range_data_.ys[start];
+			mid5+=range_data_.xs[start]*range_data_.ys[start];
+		}
+	}
+	//ax+by+c = 0 等价于 y = kx + b;kx-y + b = 0 //a = k,c = b,b=-1
+	
+	// A:mid3, B:mid1, C:mid5, D:mid2; https://blog.csdn.net/shandianfengfan/article/details/130799228
+	double divisor = n * mid3 - mid1 * mid1;
+	if (std::abs(divisor) < 1e-04)
+	{
+		temp.a = -1;
+		temp.b = 0;
+		temp.c = mid1/n;
+		// printf("condition divisor->0 trigger.\n");
+		// printf("divisor: %f\n", divisor);
+		// printf("c: %f\n", temp.c);
+	}
+	else
+	{
+		temp.a = (n * mid5 - mid1 * mid2) / divisor;        // (nC - BD) / (nA - BB), 
+		temp.b = -1;
+		temp.c = (mid2 * mid3 - mid1 * mid5) / divisor;     // (DA - BC) / (nA - BB),  
+	}
+
+	return temp;
+}
+
 //判断下一个点是否在直线上，是，返回true；否则，返回false。
 bool LineFeature::detectline(const int start,const int num)
 {
@@ -248,7 +315,7 @@ int LineFeature::detectfulline(const int start)
 	{		
 		if((fabs(a*range_data_.xs[n2]+b*range_data_.ys[n2]+c)/(sqrt(1+a*a)))<params_.least_thresh)
 		{
-			m_least = leastsquare(start,n2,2);
+			m_least = leastsquare2(start,n2,2);
 			if(n2 < (point_num_.size() - 1))
 			{
 				n2 = n2 + 1;
@@ -278,7 +345,7 @@ int LineFeature::detectfulline(const int start)
 	{
 		if((fabs(a*range_data_.xs[n1]+b*range_data_.ys[n1]+c)/(sqrt(1+a*a)))<params_.least_thresh)
 		{
-			m_least = leastsquare(n1,n2,3);
+			m_least = leastsquare2(n1,n2,3);
 			if(n1>0)
 			{
 				n1 = n1 - 1;
@@ -301,7 +368,7 @@ int LineFeature::detectfulline(const int start)
 	m_temp.left = n1;
 	m_temp.right = n2;
 	//此处是统一再做一次拟合，可能以一定步长进行拟合搜索的时候，需要这样完整的拟合过程，此时不需要
-	m_result = leastsquare(n1,n2,1);
+	m_result = leastsquare2(n1,n2,1);
 	m_temp.a = m_result.a;
 	m_temp.b = m_result.b;
 	m_temp.c = m_result.c;
@@ -361,7 +428,7 @@ void LineFeature::cleanline()
 				{
 				    int _left = min(m_line[p].left,m_line[q].left);
 				  
-				    least m_temp = leastsquare(_left,m_line[q].right,1);
+				    least m_temp = leastsquare2(_left,m_line[q].right,1);
 				    
 				    m_line[p].a = m_temp.a;
 				    m_line[p].b = m_temp.b;
@@ -400,13 +467,13 @@ void LineFeature::cleanline()
 				}
 			}
 			m_line[p].right = m_iter-1;
-			temp_least = leastsquare(m_line[p].left,m_line[p].right,1);
+			temp_least = leastsquare2(m_line[p].left,m_line[p].right,1);
 			m_line[p].a = temp_least.a;	
 			m_line[p].b = temp_least.b;	
 			m_line[p].c = temp_least.c;	
 
 			m_line[q].left = m_iter;
-			temp_least = leastsquare(m_line[q].left,m_line[q].right,1);
+			temp_least = leastsquare2(m_line[q].left,m_line[q].right,1);
 			m_line[q].a = temp_least.a;	
 			m_line[q].b = temp_least.b;	
 			m_line[q].c = temp_least.c;	
@@ -504,7 +571,7 @@ void LineFeature::extractLines(std::vector<line>& temp_line1,std::vector<gline>&
 	for(unsigned int i = 0; i < (point_num_.size() - params_.min_line_points) ;i++)
 	{
 		
-		m_least = leastsquare(i,i + params_.seed_line_points - 1,1);
+		m_least = leastsquare2(i,i + params_.seed_line_points - 1,1);
 		//std::cout<<m_least.a<<" "<<m_least.b<<" "<<m_least.c<<std::endl;
 		if(detectline(i,params_.seed_line_points))
 		{	

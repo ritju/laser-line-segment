@@ -16,6 +16,8 @@ LaserFeatureROS::LaserFeatureROS(rclcpp::Node::SharedPtr nh, rclcpp::Node::Share
 	{
 		marker_publisher_ = nh_->create_publisher<visualization_msgs::msg::Marker>("publish_line_markers", 1);
 	}
+
+  	wall_lines_stamped_publisher_ = nh_->create_publisher<wall_line_detection_msgs::msg::WallLinesStamped>("wall_lines_stamped", 1);
 	rclcpp::spin(nh_);
 }
 
@@ -53,7 +55,7 @@ void LaserFeatureROS::compute_bearing(const sensor_msgs::msg::LaserScan::ConstPt
 	RCLCPP_INFO(nh_local_->get_logger(), "Data has been cached.");
 }
 
-void LaserFeatureROS::scanValues(const sensor_msgs::msg::LaserScan::ConstPtr &scan_msg)
+void LaserFeatureROS::scanValues(const sensor_msgs::msg::LaserScan::ConstSharedPtr &scan_msg)
 {
 	if(!com_bearing_flag)
 	{
@@ -64,7 +66,7 @@ void LaserFeatureROS::scanValues(const sensor_msgs::msg::LaserScan::ConstPtr &sc
 	std::vector<double> scan_ranges_doubles(scan_msg->ranges.begin(), scan_msg->ranges.end());
 	line_feature_.setRangeData(scan_ranges_doubles);
 
-	startgame();
+	startgame(scan_msg);
 }
 
 void LaserFeatureROS::publishMarkerMsg(const std::vector<gline> &m_gline,visualization_msgs::msg::Marker &marker_msg)
@@ -98,7 +100,7 @@ void LaserFeatureROS::publishMarkerMsg(const std::vector<gline> &m_gline,visuali
 
 
 //主函数
-void LaserFeatureROS::startgame()
+void LaserFeatureROS::startgame(const sensor_msgs::msg::LaserScan::ConstSharedPtr msg)
 {
 	std::vector<line> lines;
 	std::vector<gline> glines;
@@ -120,6 +122,22 @@ void LaserFeatureROS::startgame()
 	// 		it++;
 	// 	}
 	// }
+
+	// pub 直线话题
+	wall_line_detection_msgs::msg::WallLinesStamped wall_lines_msg;
+	wall_lines_msg.header=msg->header;
+	wall_lines_msg.laser_scan = *msg;
+	wall_lines_msg.line_selected = -1;
+	for (auto it = glines.begin(); it != glines.end(); it++)
+	{
+		wall_line_detection_msgs::msg::WallLine wall_line_msg;
+		wall_line_msg.x1 = it->x1;
+		wall_line_msg.y1 = it->y1;
+		wall_line_msg.x2 = it->x2;
+		wall_line_msg.y2 = it->y2;
+		wall_lines_msg.wall_lines.push_back(wall_line_msg);
+	}
+	wall_lines_stamped_publisher_->publish(wall_lines_msg);
 
   	// Also publish markers if parameter publish_markers is set to true
   	if (show_lines_)

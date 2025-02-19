@@ -55,6 +55,7 @@ class LineFeature
 		//int regiongrow(int);
 		//通过激光数据的首末索引值进行直线方程的求解
 		least leastsquare(int,int,int);
+		least leastsquare2(int,int,int);
 		//检测种子直线
 		bool detectline(const int,const int);
 		//通过种子直线，复原出整条直线，并进行最后的求定

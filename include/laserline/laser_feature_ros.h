@@ -12,6 +12,9 @@ mobile robot pose from laser
 #include <rclcpp/rclcpp.hpp>
 #include <sensor_msgs/msg/laser_scan.hpp>
 #include <visualization_msgs/msg/marker.hpp>
+#include <std_msgs/msg/header.hpp>
+#include "wall_line_detection_msgs/msg/wall_lines_stamped.hpp"
+#include "wall_line_detection_msgs/msg/wall_line.hpp"
 #include <geometry_msgs/msg/point.hpp>
 #include "laserline/line_feature.h"
 
@@ -25,7 +28,7 @@ class LaserFeatureROS
 		//
 		~LaserFeatureROS();
 		//
-		void startgame();
+		void startgame(const sensor_msgs::msg::LaserScan::ConstSharedPtr);
 	private:
 		//memeber function
 		//发布直线分割消息
@@ -57,6 +60,7 @@ class LaserFeatureROS
   		rclcpp::Subscription<sensor_msgs::msg::LaserScan>::SharedPtr scan_subscriber_;
   		// rclcpp::Publisher<>::SharedPtr line_publisher_;
   		rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr marker_publisher_;
+  		rclcpp::Publisher<wall_line_detection_msgs::msg::WallLinesStamped>::SharedPtr wall_lines_stamped_publisher_;
 };
 
 }

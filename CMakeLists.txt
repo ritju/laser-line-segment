@@ -7,6 +7,9 @@ find_package(rclcpp REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(visualization_msgs REQUIRED)
+find_package(std_msgs REQUIRED)
+find_package(wall_line_detection_msgs REQUIRED)
+
 
 set(dependencies
     Boost
@@ -15,6 +18,8 @@ set(dependencies
     geometry_msgs
     sensor_msgs
     visualization_msgs
+    std_msgs
+    wall_line_detection_msgs
 )
 
 include_directories(SYSTEM ${Boost_INCLUDE_DIRS})
