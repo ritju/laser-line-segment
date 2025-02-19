@@ -1,0 +1,12 @@
+laser_line_segment_local:
+  ros__parameters:
+    frame_id: "laser_link"
+    scan_topic: "scan"
+    show_lines: true
+    least_thresh: 0.04
+    min_line_length: 1.5
+    predict_distance: 0.1
+    seed_line_points: 6
+    min_line_points: 12
+
+
