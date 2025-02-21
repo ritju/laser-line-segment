@@ -27,22 +27,22 @@ namespace line_path_compare
                 explicit LinePathCompare(const rclcpp::NodeOptions &options = rclcpp::NodeOptions());
                 ~LinePathCompare();
 
-                std::vector<nav_msgs::msg::Path> get_compare_result();
+                std::vector<nav_msgs::msg::Path> get_compare_result(nav_msgs::msg::Path);
 
                 // subs
-                rclcpp::Subscription<nav_msgs::msg::Path>::SharedPtr path_sub_;
+                // rclcpp::Subscription<nav_msgs::msg::Path>::SharedPtr path_sub_;
                 rclcpp::Subscription<wall_line_detection_msgs::msg::WallLinesStamped>::SharedPtr wall_lines_sub_;
 
                 // callback for subs
-                void path_sub_callback_(nav_msgs::msg::Path::SharedPtr msg);
+                // void path_sub_callback_(nav_msgs::msg::Path::SharedPtr msg);
                 void wall_lines_callback_(wall_line_detection_msgs::msg::WallLinesStamped::SharedPtr msg);
 
                 bool is_current(double);
                 bool is_similar(POINT line1_p1, POINT line1_p2, POINT line2_p1, POINT line2_p2, double theta_thr, double dis_thr);
 
-                double area(int x1, int y1, int x2, int y2, int x3, int y3);
-                double distance(int x1, int y1, int x2, int y2);
-                double calculate_height(int x1, int y1, int x2, int y2, int x3, int y3);
+                double area(double x1, double y1, double x2, double y2, double x3, double y3);
+                double distance(double x1, double y1, double x2, double y2);
+                double calculate_height(double x1, double y1, double x2, double y2, double x3, double y3);
 
                 void get_tf(std::string laser_frame_id, rclcpp::Time laser_scan_time);
 
@@ -64,12 +64,13 @@ namespace line_path_compare
                 // parameters
                 double theta_thr_;
                 double dis_thr_;
-                std::string path_topic_;
+                // std::string path_topic_;
                 std::string wall_lines_topic_;
                 double time_tolerance_;
                 double tf_tolerance_;
 
                 void init_params();
+                void path_process_(nav_msgs::msg::Path msg);
 
         };  // end of class
 

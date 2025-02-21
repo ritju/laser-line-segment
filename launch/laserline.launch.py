@@ -40,6 +40,6 @@ def generate_launch_description():
 
    
     launch_description.add_action(laser_line_node)
-    launch_description.add_action(line_path_compare_node)
+    # launch_description.add_action(line_path_compare_node)
 
     return launch_description

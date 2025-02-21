@@ -50,17 +50,22 @@ rclcpp_components_register_node(line_path_compare_lib
     PLUGIN "line_path_compare::LinePathCompare"
     EXECUTABLE line_path_compare)
 
+# test line_path_compare
+add_executable(test_compare src/test_compare.cpp src/line_path_compare.cpp)
+target_include_directories(test_compare PUBLIC include)
+ament_target_dependencies(test_compare ${dependencies})
 
 install(TARGETS 
   laserline 
   line_path_compare_lib
+  test_compare
   ARCHIVE DESTINATION lib
   LIBRARY DESTINATION lib
   RUNTIME DESTINATION bin
 )
 
 install(TARGETS
- laserline line_path_compare_lib
+ laserline line_path_compare_lib test_compare
  DESTINATION lib/${PROJECT_NAME})
 
 install(DIRECTORY include/
@@ -72,7 +77,7 @@ DESTINATION share/${PROJECT_NAME}
 )
 
 ament_export_include_directories(include)
-ament_export_libraries(laserline line_path_compare_lib)
+ament_export_libraries(laserline line_path_compare_lib test_compare)
 ament_export_dependencies(${dependencies})
 
 ament_package()

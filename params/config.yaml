@@ -13,7 +13,7 @@ line_path_compare_node:
   ros__parameters:
     theta_thr: 0.3  # path和直线角度误差
     dis_thr: 0.8    # path和直线距离误差
-    path_topic: "/path"
+    # path_topic: "/path"
     wall_lines_topic: "/wall_lines_stamped"
     time_tolerance: 0.2  # 话题时效性误差
     tf_tolerance: 0.1    # tf变换误差
