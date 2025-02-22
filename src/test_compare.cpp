@@ -2,17 +2,20 @@
 #include "laserline/line_path_compare.hpp"
 #include <unistd.h> //sleep(seconds)
 #include <thread>
+#include <nlohmann/json.hpp>
 
-float poses[][2] = {
-        {4.0, -5.0},
-        {2.2, -5.0},
-        {2.2, -4.0},
-        {2.2, -3.0},
-        {2.2, -2.0},
-        {4.0, -2.0},
-};
 
-#define array_size 6
+std::vector<std::vector<double>> parse_json_array(const std::string& json_str) {
+        auto json = nlohmann::json::parse(json_str);
+        std::vector<std::vector<double>> result;
+
+        for (const auto& inner_array : json) {
+            std::vector<double> vec;
+            for (auto val : inner_array) vec.push_back(val.get<double>());
+            result.push_back(vec);
+        }
+        return result;
+    }
 
 void test(std::shared_ptr<line_path_compare::LinePathCompare>nh, nav_msgs::msg::Path path)
 {
@@ -40,9 +43,17 @@ void test(std::shared_ptr<line_path_compare::LinePathCompare>nh, nav_msgs::msg::
 
 int main(int argc,char** argv)
 {       
+        
+
+	rclcpp::init(argc, argv);
+
+        auto nh_test = std::make_shared<rclcpp::Node>("test_compare_node");
+        nh_test->declare_parameter("poses", "[]");
+        auto param_poses = nh_test->get_parameter("poses").as_string();
+        auto poses = parse_json_array(param_poses);
         nav_msgs::msg::Path path;
         path.header.frame_id = "map";
-        for (int i = 0; i < array_size; i++)
+        for (int i = 0; i < poses.size(); i++)
         {
                 geometry_msgs::msg::PoseStamped pose;
                 pose.header.frame_id = "map";
@@ -51,11 +62,11 @@ int main(int argc,char** argv)
                 path.poses.push_back(pose);
         }
 
-	rclcpp::init(argc, argv);
         rclcpp::ExecutorOptions options;
         rclcpp::executors::MultiThreadedExecutor executor;
         auto nh = std::make_shared<line_path_compare::LinePathCompare>();
         auto t1 = std::thread(test, nh, path);
+ 
         t1.detach();
         
         executor.add_node(nh);
