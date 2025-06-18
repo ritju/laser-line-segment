@@ -1,15 +1,14 @@
 #include <rclcpp/rclcpp.hpp>
 #include "rclcpp_components/register_node_macro.hpp"
-
 #include "wall_line_detection_msgs/msg/wall_lines_stamped.hpp"
 #include "nav_msgs/msg/path.hpp"
-
 #include <mutex>
 #include "tf2_ros/buffer.h"
 #include "tf2_ros/transform_listener.h"
 #include "tf2_geometry_msgs/tf2_geometry_msgs.hpp"
 #include "tf2/utils.h"
 #include "angles/angles.h"
+#include <nav2_util/lifecycle_node.hpp>
 
 //点信息
 typedef struct _POINT
@@ -20,21 +19,19 @@ typedef struct _POINT
 
 namespace line_path_compare
 {        
-        class LinePathCompare : public rclcpp::Node
+        class LinePathCompare
         {
         public:
                 
-                explicit LinePathCompare(const rclcpp::NodeOptions &options = rclcpp::NodeOptions());
+                explicit LinePathCompare(nav2_util::LifecycleNode::SharedPtr node);
                 ~LinePathCompare();
 
                 std::vector<nav_msgs::msg::Path> get_compare_result(nav_msgs::msg::Path);
 
                 // subs
-                // rclcpp::Subscription<nav_msgs::msg::Path>::SharedPtr path_sub_;
                 rclcpp::Subscription<wall_line_detection_msgs::msg::WallLinesStamped>::SharedPtr wall_lines_sub_;
 
                 // callback for subs
-                // void path_sub_callback_(nav_msgs::msg::Path::SharedPtr msg);
                 void wall_lines_callback_(wall_line_detection_msgs::msg::WallLinesStamped::SharedPtr msg);
 
                 bool is_current(double);
@@ -71,7 +68,9 @@ namespace line_path_compare
 
                 void init_params();
                 void path_process_(nav_msgs::msg::Path msg);
-
+                bool isProjectionOutside(POINT line1_p1, POINT line1_p2, POINT line2_p1, POINT line2_p2);
+        private:
+                nav2_util::LifecycleNode::SharedPtr node_;
         };  // end of class
 
 

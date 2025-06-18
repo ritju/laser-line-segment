@@ -16,6 +16,7 @@ find_package(tf2 REQUIRED)
 find_package(tf2_ros REQUIRED)
 find_package(angles REQUIRED)
 find_package(nlohmann_json REQUIRED)
+find_package(nav2_util REQUIRED)
 
 set(dependencies
     Boost
@@ -33,9 +34,10 @@ set(dependencies
     tf2_ros
     angles
     nlohmann_json
+    nav2_util
 )
 
-include_directories(SYSTEM ${Boost_INCLUDE_DIRS})
+include_directories(SYSTEM ${Boost_INCLUDE_DIRS} include())
 
 # laserline
 add_executable(laserline src/main.cpp src/laser_feature_ros.cpp src/line_feature.cpp)
@@ -44,30 +46,19 @@ ament_target_dependencies(laserline ${dependencies})
 
 #  line_path_compare
 add_library(line_path_compare_lib SHARED src/line_path_compare.cpp)
-target_include_directories(line_path_compare_lib PUBLIC include)
-ament_target_dependencies(line_path_compare_lib
+ament_target_dependencies(line_path_compare_lib PUBLIC
   ${dependencies}
 )
-rclcpp_components_register_node(line_path_compare_lib
-    PLUGIN "line_path_compare::LinePathCompare"
-    EXECUTABLE line_path_compare)
-
-# test line_path_compare
-add_executable(test_compare src/test_compare.cpp src/line_path_compare.cpp)
-target_include_directories(test_compare PUBLIC include)
-ament_target_dependencies(test_compare ${dependencies})
-
-install(TARGETS 
-  laserline 
-  line_path_compare_lib
-  test_compare
+ament_export_targets(line_path_compare_lib HAS_LIBRARY_TARGET)
+install(TARGETS line_path_compare_lib
+  EXPORT line_path_compare_lib
   ARCHIVE DESTINATION lib
   LIBRARY DESTINATION lib
   RUNTIME DESTINATION bin
 )
 
 install(TARGETS
- laserline line_path_compare_lib test_compare
+ laserline
  DESTINATION lib/${PROJECT_NAME})
 
 install(DIRECTORY include/
@@ -77,10 +68,6 @@ install(DIRECTORY include/
 install(DIRECTORY launch params
 DESTINATION share/${PROJECT_NAME}
 )
-
-ament_export_include_directories(include)
-ament_export_libraries(laserline line_path_compare_lib test_compare)
-ament_export_dependencies(${dependencies})
 
 ament_package()
 

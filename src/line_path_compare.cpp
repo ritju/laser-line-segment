@@ -2,73 +2,63 @@
 
 namespace line_path_compare
 {
-        LinePathCompare::LinePathCompare(const rclcpp::NodeOptions& options): rclcpp::Node("line_path_compare_node", options)
+        LinePathCompare::LinePathCompare(nav2_util::LifecycleNode::SharedPtr node) : node_(node)
         {
-                RCLCPP_INFO(get_logger(), "line_path_compare_node construction");
+                RCLCPP_INFO(node_->get_logger(), "line_path_compare_node construction");
                 init_params();
 
                 // init tf2
-                this->tf_buffer_ = std::make_unique<tf2_ros::Buffer>(this->get_clock());
-                this->tf_listener_ = std::make_shared<tf2_ros::TransformListener>(*this->tf_buffer_);
-
-                // auto callback_group1 = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
-                // rclcpp::SubscriptionOptions sub_ops1 = rclcpp::SubscriptionOptions();
-                // sub_ops1.callback_group = callback_group1;
-                // path_sub_ = this->create_subscription<nav_msgs::msg::Path>(path_topic_, 1, 
-                //         std::bind(&LinePathCompare::path_sub_callback_, this, std::placeholders::_1), sub_ops1);
-
-                auto callback_group2 = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
+                tf_buffer_ = std::make_unique<tf2_ros::Buffer>(node_->get_clock());
+                tf_listener_ = std::make_shared<tf2_ros::TransformListener>(*this->tf_buffer_);
+                auto callback_group2 = node_->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
                 rclcpp::SubscriptionOptions sub_ops2 = rclcpp::SubscriptionOptions();
                 sub_ops2.callback_group = callback_group2;
-                wall_lines_sub_ = this->create_subscription<wall_line_detection_msgs::msg::WallLinesStamped>(wall_lines_topic_, 1,
-                        std::bind(&LinePathCompare::wall_lines_callback_, this, std::placeholders::_1), sub_ops2);
+                wall_lines_sub_ = node_->create_subscription<wall_line_detection_msgs::msg::WallLinesStamped>(wall_lines_topic_, rclcpp::QoS(rclcpp::KeepLast(1)).best_effort(),
+                                  std::bind(&LinePathCompare::wall_lines_callback_, this, std::placeholders::_1), sub_ops2);
 
         }
 
         LinePathCompare::~LinePathCompare()
         {
-              RCLCPP_INFO(get_logger(), "line_path_compare_node destruction");  
+              RCLCPP_INFO(node_->get_logger(), "line_path_compare_node destruction");  
         }
 
         void LinePathCompare::init_params()
         {
-                this->declare_parameter<double>("theta_thr", 0.05);
-                this->declare_parameter<double>("dis_thr", 0.1);
-                this->declare_parameter<std::string>("wall_lines_topic", "wall_lines_topic");
-                // this->declare_parameter<std::string>("path_topic", "path_topic");
-                this->declare_parameter<double>("time_tolerance", 0.1);
-                this->declare_parameter<double>("tf_tolerance", 0.1);
+                node_->declare_parameter<double>("theta_thr", 0.05);
+                node_->declare_parameter<double>("dis_thr", 0.1);
+                node_->declare_parameter<std::string>("wall_lines_topic", "wall_lines_topic");
+                node_->declare_parameter<double>("time_tolerance", 0.1);
+                node_->declare_parameter<double>("tf_tolerance", 0.1);
 
-                this->theta_thr_ = this->get_parameter_or<double>("theta_thr", 0.05);
-                this->dis_thr_ = this->get_parameter_or<double>("dis_thr", 0.1);
-                this->wall_lines_topic_ = this->get_parameter_or<std::string>("wall_lines_topic", "wall_lines_topic");
-                // this->path_topic_ = this->get_parameter_or<std::string>("path_topic", "path_topic");
-                this->time_tolerance_ = this->get_parameter_or<double>("time_tolerance", 0.1);
-                this->tf_tolerance_ = this->get_parameter_or<double>("tf_tolerance", 0.1);
+                node_->get_parameter_or<double>("theta_thr", theta_thr_, 0.5);
+                node_->get_parameter_or<double>("dis_thr", dis_thr_, 1.5);
+                node_->get_parameter_or<std::string>("wall_lines_topic", wall_lines_topic_, "wall_lines_topic");
+                node_->get_parameter_or<double>("time_tolerance", time_tolerance_, 0.1);
+                node_->get_parameter_or<double>("tf_tolerance", tf_tolerance_, 0.1);
 
-                RCLCPP_INFO(get_logger(), "---------- show all the parameters ----------");
-                RCLCPP_INFO(get_logger(), "theta_thr: %f", theta_thr_);
-                RCLCPP_INFO(get_logger(), "dis_thr: %f", dis_thr_);
-                RCLCPP_INFO(get_logger(), "wall_lines_topic: %s", wall_lines_topic_.c_str());
-                // RCLCPP_INFO(get_logger(), "path_topic: %s", path_topic_.c_str());
-                RCLCPP_INFO(get_logger(), "time_tolerance: %f", time_tolerance_);
-                RCLCPP_INFO(get_logger(), "tf_tolerance: %f", tf_tolerance_);
+                RCLCPP_INFO(node_->get_logger(), "---------- show all the parameters ----------");
+                RCLCPP_INFO(node_->get_logger(), "theta_thr: %f", theta_thr_);
+                RCLCPP_INFO(node_->get_logger(), "dis_thr: %f", dis_thr_);
+                RCLCPP_INFO(node_->get_logger(), "wall_lines_topic: %s", wall_lines_topic_.c_str());
+                RCLCPP_INFO(node_->get_logger(), "time_tolerance: %f", time_tolerance_);
+                RCLCPP_INFO(node_->get_logger(), "tf_tolerance: %f", tf_tolerance_);
         }
 
         void LinePathCompare::path_process_(nav_msgs::msg::Path msg)
         {
                 result_.clear();
                 path_ = msg;
-                path_last_received_time = now().seconds();
+                path_last_received_time = node_->now().seconds();
                 size_t poses_size = msg.poses.size();
                 std::vector<std::pair<POINT,POINT>> path_vec, wall_line_vec;
-                for (size_t i = 0; i < poses_size - 1; i++)
+                if  (poses_size > 2)
                 {
                         std::pair<POINT,POINT> line;
-                        line.first.x = path_.poses[i].pose.position.x;
-                        line.first.y = path_.poses[i].pose.position.y;
-                        line.second.x = path_.poses[i+1].pose.position.x;
-                        line.second.y = path_.poses[i+1].pose.position.y;
+                        line.first.x = path_.poses.front().pose.position.x;
+                        line.first.y = path_.poses.front().pose.position.y;
+                        line.second.x = path_.poses.back().pose.position.x;
+                        line.second.y = path_.poses.back().pose.position.y;
                         path_vec.push_back(line);
                 }
 
@@ -82,8 +72,6 @@ namespace line_path_compare
                         line.second.y = wall_line.y2;
                         wall_line_vec.push_back(line);
                 }
-
-                RCLCPP_INFO(get_logger(), "path_vec size: %ld, wall_line_vec size: %ld", path_vec.size(), wall_lines_.wall_lines.size());
 
                 for (size_t i = 0; i < path_vec.size(); i++)
                 {
@@ -100,16 +88,17 @@ namespace line_path_compare
                                 line2_p1.y = wall_line_vec[j].first.y;
                                 line2_p2.x = wall_line_vec[j].second.x;
                                 line2_p2.y = wall_line_vec[j].second.y;
-
                                 if (is_similar(line1_p1, line1_p2, line2_p1, line2_p2, theta_thr_, dis_thr_))
                                 {
                                         nav_msgs::msg::Path path;
                                         path.header.frame_id = "map";
                                         path.header.stamp = wall_lines_.laser_scan.header.stamp;
                                         geometry_msgs::msg::PoseStamped pose;
-                                        pose = msg.poses[i];
+                                        pose.pose.position.x = line2_p1.x;
+                                        pose.pose.position.y = line2_p1.y;
                                         path.poses.push_back(pose);
-                                        pose = msg.poses[i+1];
+                                        pose.pose.position.x = line2_p2.x;
+                                        pose.pose.position.y = line2_p2.y;
                                         path.poses.push_back(pose);
                                         result_.push_back(path);
                                         break;
@@ -122,81 +111,13 @@ namespace line_path_compare
                 }
         }
 
-        // void LinePathCompare::path_sub_callback_(nav_msgs::msg::Path::SharedPtr msg)
-        // {
-        //         mutex.lock();
-
-        //         result_.clear();
-        //         path_ = *msg;
-        //         path_last_received_time = now().seconds();
-        //         size_t poses_size = msg->poses.size();
-        //         std::vector<std::pair<POINT,POINT>> path_vec, wall_line_vec;
-        //         for (size_t i = 0; i < poses_size - 1; i++)
-        //         {
-        //                 std::pair<POINT,POINT> line;
-        //                 line.first.x = path_.poses[i].pose.position.x;
-        //                 line.first.y = path_.poses[i].pose.position.y;
-        //                 line.second.x = path_.poses[i+1].pose.position.x;
-        //                 line.second.y = path_.poses[i+1].pose.position.y;
-        //                 path_vec.push_back(line);
-        //         }
-
-        //         for (size_t i = 0; i < wall_lines_.wall_lines.size(); i++)
-        //         {
-        //                 auto wall_line = wall_lines_.wall_lines[i];
-        //                 std::pair<POINT,POINT> line;
-        //                 line.first.x = wall_line.x1;
-        //                 line.first.y = wall_line.y1;
-        //                 line.second.x = wall_line.x2;
-        //                 line.second.y = wall_line.y2;
-        //                 wall_line_vec.push_back(line);
-        //         }
-
-        //         for (size_t i = 0; i < path_vec.size(); i++)
-        //         {
-        //                 for (size_t j = 0; j < wall_line_vec.size(); j++)
-        //                 {
-        //                         POINT line1_p1, line1_p2, line2_p1, line2_p2;
-
-        //                         line1_p1.x = path_vec[i].first.x;
-        //                         line1_p1.y = path_vec[i].first.y;
-        //                         line1_p2.x = path_vec[i].second.x;
-        //                         line1_p2.y = path_vec[i].second.y;
-
-        //                         line2_p1.x = wall_line_vec[j].first.x;
-        //                         line2_p1.y = wall_line_vec[j].first.y;
-        //                         line2_p2.x = wall_line_vec[j].second.x;
-        //                         line2_p2.y = wall_line_vec[j].second.y;
-
-        //                         if (is_similar(line1_p1, line1_p2, line2_p1, line2_p2, theta_thr_, dis_thr_))
-        //                         {
-        //                                 nav_msgs::msg::Path path;
-        //                                 path.header= msg->header;
-        //                                 geometry_msgs::msg::PoseStamped pose;
-        //                                 pose = msg->poses[i];
-        //                                 path.poses.push_back(pose);
-        //                                 pose = msg->poses[i+1];
-        //                                 path.poses.push_back(pose);
-        //                                 result_.push_back(path);
-        //                                 break;
-        //                         }
-        //                         else
-        //                         {
-        //                                 continue;
-        //                         }
-        //                 }
-        //         }
-
-        //         mutex.unlock();
-        // }
-
         void LinePathCompare::wall_lines_callback_(wall_line_detection_msgs::msg::WallLinesStamped::SharedPtr msg)
         {
                 mutex.lock();
-                RCLCPP_DEBUG_THROTTLE(get_logger(), *get_clock(), 1000, "received wall_lines_stamped msg");
+                RCLCPP_DEBUG_THROTTLE(node_->get_logger(), *node_->get_clock(), 1000, "received wall_lines_stamped msg");
                 wall_lines_ = *msg;
-                wall_lines_last_received_time = now().seconds();
-                get_tf("laser_link", rclcpp::Time(msg->header.stamp));
+                wall_lines_last_received_time = node_->now().seconds();
+                get_tf("base_scan", rclcpp::Time(msg->header.stamp));
                 for(size_t i = 0; i < wall_lines_.wall_lines.size(); i++)
                 {
                         tf2::Transform tf_temp, tf_;                        
@@ -214,16 +135,15 @@ namespace line_path_compare
                         wall_lines_.wall_lines[i].x2 = tf_.getOrigin().getX();
                         wall_lines_.wall_lines[i].y2 = tf_.getOrigin().getY();
 
-                        RCLCPP_DEBUG(get_logger(), "x1: %f, y1: %f", wall_lines_.wall_lines[i].x1, wall_lines_.wall_lines[i].y1);
-                        RCLCPP_DEBUG(get_logger(), "x2: %f, y2: %f", wall_lines_.wall_lines[i].x2, wall_lines_.wall_lines[i].y2);
+                        RCLCPP_DEBUG(node_->get_logger(), "x1: %f, y1: %f", wall_lines_.wall_lines[i].x1, wall_lines_.wall_lines[i].y1);
+                        RCLCPP_DEBUG(node_->get_logger(), "x2: %f, y2: %f", wall_lines_.wall_lines[i].x2, wall_lines_.wall_lines[i].y2);
                 }
-                RCLCPP_DEBUG_THROTTLE(get_logger(), *get_clock(), 1000, "wall_lines_ size: %ld", wall_lines_.wall_lines.size());
+                RCLCPP_DEBUG_THROTTLE(node_->get_logger(), *node_->get_clock(), 1000, "wall_lines_ size: %ld", wall_lines_.wall_lines.size());
                 mutex.unlock();
         }
 
         std::vector<nav_msgs::msg::Path> LinePathCompare::get_compare_result(nav_msgs::msg::Path path)
         {
-                RCLCPP_INFO(get_logger(), "start comparison of wall_line and path");
                 mutex.lock();
 
                 path_process_(path);
@@ -240,7 +160,7 @@ namespace line_path_compare
 
         bool LinePathCompare::is_current(double received_time)
         {
-                return std::abs(now().seconds() - received_time) < this->time_tolerance_;
+                return std::abs(node_->now().seconds() - received_time) < this->time_tolerance_;
         }
 
         // line1: path, line2: wall_line
@@ -248,23 +168,50 @@ namespace line_path_compare
         {
                 bool ret = true;
 
+                bool path_in_field = isProjectionOutside(line1_p1, line1_p2, line2_p1, line2_p2);
+                if (path_in_field)
+                {
+                        return false;
+                }
+
                 double theta1_1, theta1_2, theta2, line_distance;
                 theta1_1 = std::atan2(line1_p2.y - line1_p1.y, line1_p2.x - line1_p1.x);
                 theta1_2 = std::atan2(line1_p1.y - line1_p2.y, line1_p1.x - line1_p2.x);
                 theta2 = std::atan2(line2_p2.y - line2_p1.y, line2_p2.x - line2_p1.x);
-                double theta_delta_1, theta_delta_2;
-                theta_delta_1 = std::abs(theta1_1 - theta2);
-                theta_delta_2 = std::abs(theta1_2 - theta2);
 
-                RCLCPP_INFO(get_logger(), "theta1_1: %f, theta1_2: %f", theta1_1, theta1_2);
-                RCLCPP_INFO(get_logger(), "theta2: %f", theta2);
-                RCLCPP_INFO(get_logger(), "theta_delta_1: %f, theta_delta_2: %f", theta_delta_1, theta_delta_2);
-                RCLCPP_INFO(get_logger(), "theta_thr: %f", theta_thr_);
+
+                // 计算两条直线的方向向量[1](@ref)
+                double v1x = line1_p2.x - line1_p1.x;
+                double v1y = line1_p2.y - line1_p1.y;
+                double v2x = line2_p2.x - line2_p1.x;
+                double v2y = line2_p2.y - line2_p1.y;
+
+                // 计算向量点积[6,7](@ref)
+                double dot_product = v1x * v2x + v1y * v2y;
+
+                // 计算向量模长
+                double norm_v1 = std::hypot(v1x, v1y);  // 更安全的模长计算
+                double norm_v2 = std::hypot(v2x, v2y);
+
+                // 处理非法输入（重合点）
+                if (norm_v1 == 0 || norm_v2 == 0) {
+                        throw std::invalid_argument("直线的两个点重合，无法确定方向向量");
+                }
+
+                // 计算余弦值（取绝对值确保锐角）[2](@ref)
+                double cos_theta = std::abs(dot_product) / (norm_v1 * norm_v2);
+
+                // 处理浮点精度溢出
+                cos_theta = std::max(std::min(cos_theta, 1.0), -1.0);
+
+                double theta_delta = std::acos(cos_theta);
+
+
+                RCLCPP_DEBUG(node_->get_logger(), "line2_p1: (%f, %f) , line2_p2:  (%f, %f)", line2_p1.x, line2_p1.y, line2_p2.x, line2_p2.y);
+                RCLCPP_DEBUG(node_->get_logger(), "theta_delta: %f", theta_delta);
                 
-                if (theta_delta_1 > this->theta_thr_ && theta_delta_2 > this->theta_thr_)
+                if (theta_delta > this->theta_thr_)
                 {
-                        RCLCPP_INFO(get_logger(), "discard.");
-                        RCLCPP_INFO(get_logger(), "-------------------------");
                         return false;
                 }
 
@@ -273,24 +220,13 @@ namespace line_path_compare
                 line1_middle_point.y = (line1_p1.y + line1_p2.y) / 2.0;
                 line_distance = calculate_height(line1_middle_point.x, line1_middle_point.y, line2_p1.x, line2_p1.y, line2_p2.x, line2_p2.y);
 
-                RCLCPP_INFO(get_logger(), "line1_middle_point.x: %f, line1_middle_point.y: %f", line1_middle_point.x, line1_middle_point.y);
-                RCLCPP_INFO(get_logger(), "line2_p1.x: %f, line2_p1.y: %f", line2_p1.x, line2_p1.y);
-                RCLCPP_INFO(get_logger(), "line2_p2.x: %f, line2_p2.y: %f", line2_p2.x, line2_p2.y);
-                RCLCPP_INFO(get_logger(), "line_distance: %f", line_distance);
-                RCLCPP_INFO(get_logger(), "dis_thr: %f", dis_thr);
+                RCLCPP_DEBUG(node_->get_logger(), "line1_middle_point.x: %f, line1_middle_point.y: %f", line1_middle_point.x, line1_middle_point.y);
+                RCLCPP_DEBUG(node_->get_logger(), "line_distance: %f", line_distance);
 
                 if (line_distance >= dis_thr)
                 {
-                        RCLCPP_INFO(get_logger(), "discard.");                        
-                        RCLCPP_INFO(get_logger(), "-------------------------");
                         return false;
                 }
-                else
-                {
-                        RCLCPP_INFO(get_logger(), "satisfied.");                        
-                        RCLCPP_INFO(get_logger(), "-------------------------");
-                }
-
                 return ret;
         }
 
@@ -304,7 +240,7 @@ namespace line_path_compare
                 if (!this->tf_buffer_->canTransform(refFrame, childFrame, tf2::TimePointZero,
                         tf2::durationFromSec(0.2), &errMsg))
                 {
-                        RCLCPP_ERROR_STREAM(this->get_logger(), "Unable to get TF from " 
+                        RCLCPP_ERROR_STREAM(node_->get_logger(), "Unable to get TF from " 
                         << refFrame << " to " << childFrame << ": " << errMsg);
                 } 
                 else 
@@ -317,7 +253,7 @@ namespace line_path_compare
                         catch (const tf2::TransformException & e) 
                         {
                                 RCLCPP_ERROR_STREAM(
-                                this->get_logger(),
+                                node_->get_logger(),
                                 "Error in lookupTransform of " << childFrame << " in " << refFrame << " : " << e.what());
                         }
                 }
@@ -336,11 +272,37 @@ namespace line_path_compare
         double LinePathCompare::calculate_height(double x1, double y1, double x2, double y2, double x3, double y3)
         {
                 return area(x1, y1, x2, y2, x3, y3) / distance(x2, y2, x3, y3);
+        }
+        bool LinePathCompare::isProjectionOutside(POINT line1_p1, POINT line1_p2, POINT line2_p1, POINT line2_p2) 
+        {
+                // 计算线段line2的向量
+                const POINT line2_vec = {line2_p2.x - line2_p1.x, line2_p2.y - line2_p1.y};
+                const double line2_length_sq = line2_vec.x * line2_vec.x + line2_vec.y * line2_vec.y;
+
+                // 处理线段长度为0的特殊情况
+                if (line2_length_sq < 1e-10) return true;
+
+                // 计算line1两个端点在线段line2上的投影参数λ
+                auto computeLambda = [&](POINT p) {
+                const POINT vec = {p.x - line2_p1.x, p.y - line2_p1.y};
+                const double dot = vec.x * line2_vec.x + vec.y * line2_vec.y;
+                return dot / line2_length_sq;
+                };
+
+                const double lambda1 = computeLambda(line1_p1);
+                const double lambda2 = computeLambda(line1_p2);
+
+                // 判断两个投影参数是否都在[0,1]区间外
+                const bool all_outside = 
+                (lambda1 < 0 || lambda2 < 0) ||  // 两个投影在起点延长线侧
+                (lambda1 > 1 || lambda2 > 1);    // 两个投影在终点延长线侧
+
+                return all_outside;
         }     
 
 } // end of namespace
 
 
-RCLCPP_COMPONENTS_REGISTER_NODE(line_path_compare::LinePathCompare)
+// RCLCPP_COMPONENTS_REGISTER_NODE(line_path_compare::LinePathCompare)
 
 
