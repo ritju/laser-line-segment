@@ -65,6 +65,7 @@ namespace line_path_compare
                 std::string wall_lines_topic_;
                 double time_tolerance_;
                 double tf_tolerance_;
+                std::string laser_link_frame_;
 
                 void init_params();
                 void path_process_(nav_msgs::msg::Path msg);

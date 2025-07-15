@@ -30,12 +30,14 @@ namespace line_path_compare
                 node_->declare_parameter<std::string>("wall_lines_topic", "wall_lines_topic");
                 node_->declare_parameter<double>("time_tolerance", 0.1);
                 node_->declare_parameter<double>("tf_tolerance", 0.1);
+                node_->declare_parameter<std::string>("laser_link_frame", "laser_link");
 
                 node_->get_parameter_or<double>("theta_thr", theta_thr_, 0.5);
                 node_->get_parameter_or<double>("dis_thr", dis_thr_, 1.5);
                 node_->get_parameter_or<std::string>("wall_lines_topic", wall_lines_topic_, "wall_lines_topic");
                 node_->get_parameter_or<double>("time_tolerance", time_tolerance_, 0.1);
                 node_->get_parameter_or<double>("tf_tolerance", tf_tolerance_, 0.1);
+                node_->get_parameter_or<std::string>("laser_link_frame", laser_link_frame_, "laser_link");
 
                 RCLCPP_INFO(node_->get_logger(), "---------- show all the parameters ----------");
                 RCLCPP_INFO(node_->get_logger(), "theta_thr: %f", theta_thr_);
@@ -43,6 +45,7 @@ namespace line_path_compare
                 RCLCPP_INFO(node_->get_logger(), "wall_lines_topic: %s", wall_lines_topic_.c_str());
                 RCLCPP_INFO(node_->get_logger(), "time_tolerance: %f", time_tolerance_);
                 RCLCPP_INFO(node_->get_logger(), "tf_tolerance: %f", tf_tolerance_);
+                RCLCPP_INFO(node_->get_logger(), "laser_link_frame: %f", laser_link_frame_);
         }
 
         void LinePathCompare::path_process_(nav_msgs::msg::Path msg)
@@ -117,7 +120,7 @@ namespace line_path_compare
                 RCLCPP_DEBUG_THROTTLE(node_->get_logger(), *node_->get_clock(), 1000, "received wall_lines_stamped msg");
                 wall_lines_ = *msg;
                 wall_lines_last_received_time = node_->now().seconds();
-                get_tf("base_scan", rclcpp::Time(msg->header.stamp));
+                get_tf(laser_link_frame_, rclcpp::Time(msg->header.stamp));
                 for(size_t i = 0; i < wall_lines_.wall_lines.size(); i++)
                 {
                         tf2::Transform tf_temp, tf_;                        
@@ -168,11 +171,11 @@ namespace line_path_compare
         {
                 bool ret = true;
 
-                bool path_in_field = isProjectionOutside(line1_p1, line1_p2, line2_p1, line2_p2);
-                if (path_in_field)
-                {
-                        return false;
-                }
+                // bool path_in_field = isProjectionOutside(line1_p1, line1_p2, line2_p1, line2_p2);
+                // if (path_in_field)
+                // {
+                //         return false;
+                // }
 
                 double theta1_1, theta1_2, theta2, line_distance;
                 theta1_1 = std::atan2(line1_p2.y - line1_p1.y, line1_p2.x - line1_p1.x);
