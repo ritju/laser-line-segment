@@ -120,7 +120,7 @@ namespace line_path_compare
                 RCLCPP_DEBUG_THROTTLE(node_->get_logger(), *node_->get_clock(), 1000, "received wall_lines_stamped msg");
                 wall_lines_ = *msg;
                 wall_lines_last_received_time = node_->now().seconds();
-                get_tf(laser_link_frame_, rclcpp::Time(msg->header.stamp));
+                get_tf(msg->header.frame_id, rclcpp::Time(msg->header.stamp));
                 for(size_t i = 0; i < wall_lines_.wall_lines.size(); i++)
                 {
                         tf2::Transform tf_temp, tf_;                        
