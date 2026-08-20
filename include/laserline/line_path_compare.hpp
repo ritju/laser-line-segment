@@ -53,9 +53,9 @@ namespace line_path_compare
 
                 std::mutex mutex;
 
-                // tf2
-                std::shared_ptr<tf2_ros::TransformListener> tf_listener_;
+                // Buffer must outlive the listener (dedicated TF thread writes into it).
                 std::unique_ptr<tf2_ros::Buffer> tf_buffer_;
+                std::shared_ptr<tf2_ros::TransformListener> tf_listener_;
                 tf2::Transform map_laser_link_tf;
 
                 // parameters

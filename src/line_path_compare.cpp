@@ -7,9 +7,12 @@ namespace line_path_compare
                 RCLCPP_INFO(node_->get_logger(), "line_path_compare_node construction");
                 init_params();
 
-                // init tf2
+                // Attach TF to this node. spin_thread=true keeps canTransform() timeouts
+                // off the controller executor (wall_lines callback looks up TF).
                 tf_buffer_ = std::make_unique<tf2_ros::Buffer>(node_->get_clock());
-                tf_listener_ = std::make_shared<tf2_ros::TransformListener>(*this->tf_buffer_);
+                tf_buffer_->setUsingDedicatedThread(true);
+                tf_listener_ = std::make_shared<tf2_ros::TransformListener>(
+                  *tf_buffer_, node_, true);
                 auto callback_group2 = node_->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
                 rclcpp::SubscriptionOptions sub_ops2 = rclcpp::SubscriptionOptions();
                 sub_ops2.callback_group = callback_group2;
@@ -20,7 +23,13 @@ namespace line_path_compare
 
         LinePathCompare::~LinePathCompare()
         {
-              RCLCPP_INFO(node_->get_logger(), "line_path_compare_node destruction");  
+                if (node_) {
+                        RCLCPP_INFO(node_->get_logger(), "line_path_compare_node destruction");
+                }
+                // Stop the subscription and join the TF thread before Buffer is destroyed.
+                wall_lines_sub_.reset();
+                tf_listener_.reset();
+                tf_buffer_.reset();
         }
 
         void LinePathCompare::init_params()
@@ -64,7 +73,6 @@ namespace line_path_compare
                         line.second.y = path_.poses.back().pose.position.y;
                         path_vec.push_back(line);
                 }
-
                 for (size_t i = 0; i < wall_lines_.wall_lines.size(); i++)
                 {
                         auto wall_line = wall_lines_.wall_lines[i];
@@ -75,7 +83,6 @@ namespace line_path_compare
                         line.second.y = wall_line.y2;
                         wall_line_vec.push_back(line);
                 }
-
                 for (size_t i = 0; i < path_vec.size(); i++)
                 {
                         for (size_t j = 0; j < wall_line_vec.size(); j++)
@@ -148,10 +155,8 @@ namespace line_path_compare
         std::vector<nav_msgs::msg::Path> LinePathCompare::get_compare_result(nav_msgs::msg::Path path)
         {
                 mutex.lock();
-
                 path_process_(path);
                 std::vector<nav_msgs::msg::Path> output;
-
                 if (is_current(wall_lines_last_received_time) && is_current(path_last_received_time))
                 {
                         output = result_;
@@ -212,7 +217,6 @@ namespace line_path_compare
 
                 RCLCPP_DEBUG(node_->get_logger(), "line2_p1: (%f, %f) , line2_p2:  (%f, %f)", line2_p1.x, line2_p1.y, line2_p2.x, line2_p2.y);
                 RCLCPP_DEBUG(node_->get_logger(), "theta_delta: %f", theta_delta);
-                
                 if (theta_delta > this->theta_thr_)
                 {
                         return false;
@@ -233,7 +237,7 @@ namespace line_path_compare
                 return ret;
         }
 
-        void LinePathCompare::get_tf(std::string laser_frame, rclcpp::Time laser_scan_time)
+        void LinePathCompare::get_tf(std::string laser_frame, rclcpp::Time /*laser_scan_time*/)
         {
                 std::string errMsg;
                 std::string refFrame = "map";
@@ -250,8 +254,11 @@ namespace line_path_compare
                 {
                         try 
                         {
-                                transformStamped = this->tf_buffer_->lookupTransform( refFrame, childFrame, laser_scan_time, tf2::durationFromSec(this->tf_tolerance_));
-                                tf2::fromMsg(transformStamped.transform, this->map_laser_link_tf);               
+                                // TimePointZero = 取最新可用变换，避免 scan 时间略超前 TF 时外推失败
+                                transformStamped = this->tf_buffer_->lookupTransform(
+                                        refFrame, childFrame, tf2::TimePointZero,
+                                        tf2::durationFromSec(this->tf_tolerance_));
+                                tf2::fromMsg(transformStamped.transform, this->map_laser_link_tf);
                         } 
                         catch (const tf2::TransformException & e) 
                         {
