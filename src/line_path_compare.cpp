@@ -1,24 +1,40 @@
 #include "laserline/line_path_compare.hpp"
 
+#include "nav2_util/node_utils.hpp"
+
 namespace line_path_compare
 {
-        LinePathCompare::LinePathCompare(nav2_util::LifecycleNode::SharedPtr node) : node_(node)
+        std::shared_ptr<LinePathCompare> LinePathCompare::create(
+          nav2_util::LifecycleNode::SharedPtr node,
+          std::shared_ptr<tf2_ros::Buffer> tf_buffer)
+        {
+                return std::shared_ptr<LinePathCompare>(new LinePathCompare(node, tf_buffer));
+        }
+
+        LinePathCompare::LinePathCompare(
+          nav2_util::LifecycleNode::SharedPtr node,
+          std::shared_ptr<tf2_ros::Buffer> tf_buffer)
+        : node_(node)
         {
                 RCLCPP_INFO(node_->get_logger(), "line_path_compare_node construction");
                 init_params();
 
-                // Attach TF to this node. spin_thread=true keeps canTransform() timeouts
-                // off the controller executor (wall_lines callback looks up TF).
-                tf_buffer_ = std::make_unique<tf2_ros::Buffer>(node_->get_clock());
-                tf_buffer_->setUsingDedicatedThread(true);
-                tf_listener_ = std::make_shared<tf2_ros::TransformListener>(
-                  *tf_buffer_, node_, true);
+                // Prefer the controller/costmap TF buffer. A second TransformListener
+                // (own node + executor thread) inside the component container has been
+                // a source of heap corruption during configure.
+                if (tf_buffer) {
+                        tf_buffer_ = tf_buffer;
+                } else {
+                        tf_buffer_ = std::make_shared<tf2_ros::Buffer>(node_->get_clock());
+                        tf_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_);
+                }
+
                 auto callback_group2 = node_->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
                 rclcpp::SubscriptionOptions sub_ops2 = rclcpp::SubscriptionOptions();
                 sub_ops2.callback_group = callback_group2;
                 wall_lines_sub_ = node_->create_subscription<wall_line_detection_msgs::msg::WallLinesStamped>(wall_lines_topic_, rclcpp::QoS(rclcpp::KeepLast(1)).best_effort(),
                                   std::bind(&LinePathCompare::wall_lines_callback_, this, std::placeholders::_1), sub_ops2);
-
+                RCLCPP_INFO(node_->get_logger(), "line_path_compare_node construction done");
         }
 
         LinePathCompare::~LinePathCompare()
@@ -34,12 +50,18 @@ namespace line_path_compare
 
         void LinePathCompare::init_params()
         {
-                node_->declare_parameter<double>("theta_thr", 0.05);
-                node_->declare_parameter<double>("dis_thr", 0.1);
-                node_->declare_parameter<std::string>("wall_lines_topic", "wall_lines_topic");
-                node_->declare_parameter<double>("time_tolerance", 0.1);
-                node_->declare_parameter<double>("tf_tolerance", 0.1);
-                node_->declare_parameter<std::string>("laser_link_frame", "laser_link");
+                nav2_util::declare_parameter_if_not_declared(
+                  node_, "theta_thr", rclcpp::ParameterValue(0.05));
+                nav2_util::declare_parameter_if_not_declared(
+                  node_, "dis_thr", rclcpp::ParameterValue(0.1));
+                nav2_util::declare_parameter_if_not_declared(
+                  node_, "wall_lines_topic", rclcpp::ParameterValue("wall_lines_topic"));
+                nav2_util::declare_parameter_if_not_declared(
+                  node_, "time_tolerance", rclcpp::ParameterValue(0.1));
+                nav2_util::declare_parameter_if_not_declared(
+                  node_, "tf_tolerance", rclcpp::ParameterValue(0.1));
+                nav2_util::declare_parameter_if_not_declared(
+                  node_, "laser_link_frame", rclcpp::ParameterValue("laser_link"));
 
                 node_->get_parameter_or<double>("theta_thr", theta_thr_, 0.5);
                 node_->get_parameter_or<double>("dis_thr", dis_thr_, 1.5);
@@ -54,7 +76,7 @@ namespace line_path_compare
                 RCLCPP_INFO(node_->get_logger(), "wall_lines_topic: %s", wall_lines_topic_.c_str());
                 RCLCPP_INFO(node_->get_logger(), "time_tolerance: %f", time_tolerance_);
                 RCLCPP_INFO(node_->get_logger(), "tf_tolerance: %f", tf_tolerance_);
-                RCLCPP_INFO(node_->get_logger(), "laser_link_frame: %f", laser_link_frame_);
+                RCLCPP_INFO(node_->get_logger(), "laser_link_frame: %s", laser_link_frame_.c_str());
         }
 
         void LinePathCompare::path_process_(nav_msgs::msg::Path msg)
@@ -239,6 +261,9 @@ namespace line_path_compare
 
         void LinePathCompare::get_tf(std::string laser_frame, rclcpp::Time /*laser_scan_time*/)
         {
+                if (!this->tf_buffer_) {
+                        return;
+                }
                 std::string errMsg;
                 std::string refFrame = "map";
                 std::string childFrame = laser_frame;

@@ -1,6 +1,6 @@
 laser_line_segment_local:
   ros__parameters:
-    frame_id: "laser_link"
+    frame_id: "base_scan"
     scan_topic: "scan"
     show_lines: true
     least_thresh: 0.04
@@ -13,7 +13,7 @@ laser_line_segment_local:
 line_path_compare_node:
   ros__parameters:
     theta_thr: 0.3  # path和直线角度误差
-    dis_thr: 1.0    # path和直线距离误差
+    dis_thr: 2.0    # path和直线距离误差
     wall_lines_topic: "/wall_lines_stamped"
     time_tolerance: 0.2  # 话题时效性误差
     tf_tolerance: 0.1    # tf变换误差

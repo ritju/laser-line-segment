@@ -1,8 +1,12 @@
+#include <memory>
+#include <mutex>
+#include <string>
+#include <vector>
+
 #include <rclcpp/rclcpp.hpp>
 #include "rclcpp_components/register_node_macro.hpp"
 #include "wall_line_detection_msgs/msg/wall_lines_stamped.hpp"
 #include "nav_msgs/msg/path.hpp"
-#include <mutex>
 #include "tf2_ros/buffer.h"
 #include "tf2_ros/transform_listener.h"
 #include "tf2_geometry_msgs/tf2_geometry_msgs.hpp"
@@ -22,8 +26,11 @@ namespace line_path_compare
         class LinePathCompare
         {
         public:
-                
-                explicit LinePathCompare(nav2_util::LifecycleNode::SharedPtr node);
+                // Allocate in this library so TEB's make_shared cannot use a stale sizeof.
+                static std::shared_ptr<LinePathCompare> create(
+                  nav2_util::LifecycleNode::SharedPtr node,
+                  std::shared_ptr<tf2_ros::Buffer> tf_buffer = nullptr);
+
                 ~LinePathCompare();
 
                 std::vector<nav_msgs::msg::Path> get_compare_result(nav_msgs::msg::Path);
@@ -47,14 +54,13 @@ namespace line_path_compare
                 wall_line_detection_msgs::msg::WallLinesStamped wall_lines_;
                 std::vector<nav_msgs::msg::Path> result_;
                 bool path_is_current_{false}, wall_lines_is_current{false};
-                double path_last_received_time;
-                double wall_lines_last_received_time;
-                double result_time;
+                double path_last_received_time{0.0};
+                double wall_lines_last_received_time{0.0};
+                double result_time{0.0};
 
                 std::mutex mutex;
 
-                // Buffer must outlive the listener (dedicated TF thread writes into it).
-                std::unique_ptr<tf2_ros::Buffer> tf_buffer_;
+                std::shared_ptr<tf2_ros::Buffer> tf_buffer_;
                 std::shared_ptr<tf2_ros::TransformListener> tf_listener_;
                 tf2::Transform map_laser_link_tf;
 
@@ -71,6 +77,10 @@ namespace line_path_compare
                 void path_process_(nav_msgs::msg::Path msg);
                 bool isProjectionOutside(POINT line1_p1, POINT line1_p2, POINT line2_p1, POINT line2_p2);
         private:
+                explicit LinePathCompare(
+                  nav2_util::LifecycleNode::SharedPtr node,
+                  std::shared_ptr<tf2_ros::Buffer> tf_buffer);
+
                 nav2_util::LifecycleNode::SharedPtr node_;
         };  // end of class
 
